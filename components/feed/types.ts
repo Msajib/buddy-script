@@ -42,14 +42,6 @@ export function fullName(person: Pick<Person, "firstName" | "lastName">) {
   return `${person.firstName} ${person.lastName}`;
 }
 
-export function likedBy(likes: Like[]) {
-  if (likes.length === 0) {
-    return "No likes yet";
-  }
-
-  return `Liked by ${likes.map((like) => fullName(like.user)).join(", ")}`;
-}
-
 export function isLiked(likes: Like[], userId: string) {
   return likes.some((like) => like.user.id === userId);
 }

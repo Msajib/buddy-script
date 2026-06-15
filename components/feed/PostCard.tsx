@@ -47,6 +47,7 @@ export function PostCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeReplyCommentId, setActiveReplyCommentId] = useState<string | null>(null);
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
+  const [forceHidePicker, setForceHidePicker] = useState(false);
   const isAuthor = post.author.id === userId;
   const reactionOptions = [
     { key: "LIKE", icon: "👍", label: "Like" },
@@ -71,6 +72,7 @@ export function PostCard({
     setBurst(true);
     window.setTimeout(() => setBurst(false), 420);
     onPostLike(post.id, reaction);
+    setForceHidePicker(true);
   }
 
   function timeAgo(value: string) {
@@ -228,12 +230,12 @@ export function PostCard({
         <span>{post.comments.length} Comments · 0 Shares</span>
       </div>
       <div className="feed-post-actions">
-        <div className="feed-reaction-action">
+        <div className="feed-reaction-action" onMouseLeave={() => setForceHidePicker(false)}>
           <button className={`${isLiked(post.likes, userId) ? "is-liked" : ""} ${burst ? "is-bursting" : ""}`} type="button" onClick={() => react(myReaction || "LIKE")}>
             <span>{reactionOptions.find((item) => item.key === myReaction)?.icon ?? "♡"}</span>
             {myReaction ? reactionOptions.find((item) => item.key === myReaction)?.label : "Like"} ({post.likes.length})
           </button>
-          <div className="feed-reaction-picker">
+          <div className={`feed-reaction-picker ${forceHidePicker ? "is-force-hidden" : ""}`}>
             {reactionOptions.map((item) => (
               <button key={item.key} type="button" onClick={() => react(item.key)} title={item.label}>
                 {item.icon}

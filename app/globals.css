@@ -162,7 +162,7 @@ button {
 .feed-layout {
   display: grid;
   gap: 32px;
-  grid-template-columns: 418px minmax(520px, 868px) 418px;
+  grid-template-columns: 418px 1fr 418px;
   margin: 0 auto;
   max-width: 1818px;
   padding: 22px 0 48px;
@@ -718,7 +718,7 @@ button {
 
 @media (max-width: 1500px) {
   .feed-layout {
-    grid-template-columns: 300px minmax(520px, 1fr) 300px;
+    grid-template-columns: minmax(250px, 300px) 1fr minmax(250px, 300px);
     padding-left: 16px;
     padding-right: 16px;
   }
@@ -1288,6 +1288,22 @@ button {
   z-index: 5;
 }
 
+.feed-reaction-picker::before {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 15px;
+  background: transparent;
+}
+
+.feed-reaction-picker.is-force-hidden {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: translateX(-50%) translateY(8px) !important;
+}
+
 .feed-reaction-action:hover .feed-reaction-picker,
 .feed-reaction-picker:hover {
   opacity: 1;
@@ -1561,7 +1577,7 @@ button {
 
 @media (min-width: 1501px) {
   .feed-layout {
-    grid-template-columns: 418px 868px 418px;
+    grid-template-columns: 418px 1fr 418px;
   }
 }
 
@@ -2397,6 +2413,7 @@ body[data-buddy-theme="dark"] {
   font-size: 16px;
   font-weight: 400;
   line-height: 24px;
+  padding-bottom: 10px;
 }
 
 .feed-page.is-dark .feed-profile-trigger strong,

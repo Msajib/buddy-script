@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { feedInclude } from "@/lib/posts";
+import { feedInclude, withReplyTrees } from "@/lib/posts";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(request: Request, { params }: { params: { postId: string } }) {
@@ -33,7 +33,7 @@ export async function PATCH(request: Request, { params }: { params: { postId: st
     include: feedInclude
   });
 
-  return NextResponse.json({ post: updatedPost });
+  return NextResponse.json({ post: withReplyTrees(updatedPost) });
 }
 
 export async function DELETE(_: Request, { params }: { params: { postId: string } }) {

@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import path from "path";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { feedInclude, getFeedPosts } from "@/lib/posts";
+import { feedInclude, getFeedPosts, withReplyTrees } from "@/lib/posts";
 import { prisma } from "@/lib/prisma";
 import { textSchema } from "@/lib/validators";
 
@@ -67,5 +67,5 @@ export async function POST(request: Request) {
     include: feedInclude
   });
 
-  return NextResponse.json({ post }, { status: 201 });
+  return NextResponse.json({ post: withReplyTrees(post) }, { status: 201 });
 }

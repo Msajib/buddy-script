@@ -53,7 +53,7 @@ export async function getFeedPosts(userId: string, options: { cursor?: string | 
   };
 }
 
-function withReplyTrees<TPost extends { comments: Array<{ replies: Array<{ id: string; parentId?: string | null }> }> }>(post: TPost) {
+export function withReplyTrees<TPost extends { comments: Array<{ replies: Array<{ id: string; parentId?: string | null }> }> }>(post: TPost) {
   return {
     ...post,
     comments: post.comments.map((comment) => ({

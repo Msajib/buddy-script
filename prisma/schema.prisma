@@ -80,14 +80,18 @@ model Reply {
   id        String      @id @default(cuid())
   body      String
   commentId String
+  parentId  String?
   authorId  String
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   comment   Comment     @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  parent    Reply?      @relation("ReplyThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Reply[]     @relation("ReplyThread")
   author    User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
   likes     ReplyLike[]
 
   @@index([commentId, createdAt])
+  @@index([parentId, createdAt])
   @@index([authorId])
 }
 

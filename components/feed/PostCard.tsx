@@ -1,42 +1,52 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
-import { fullName, isLiked, Person, Post } from "@/components/feed/types";
+import { fullName, isLiked, Person, Post, Reply } from "@/components/feed/types";
 
 export function PostCard({
   post,
   user,
   userId,
+  mentionPeople,
   commentDraft,
   replyDrafts,
   onPostLike,
   onVisibilityChange,
   onDeletePost,
+  onDeleteComment,
+  onDeleteReply,
   onCommentLike,
   onReplyLike,
   onCommentDraft,
   onReplyDraft,
   onAddComment,
-  onAddReply
+  onAddReply,
+  onAddNestedReply
 }: {
   post: Post;
   user: Person;
   userId: string;
+  mentionPeople: Person[];
   commentDraft: string;
   replyDrafts: Record<string, string>;
   onPostLike: (postId: string, reaction?: string) => void;
   onVisibilityChange: (postId: string, visibility: "PUBLIC" | "PRIVATE") => void;
   onDeletePost: (postId: string) => void;
+  onDeleteComment: (commentId: string) => void;
+  onDeleteReply: (replyId: string) => void;
   onCommentLike: (commentId: string) => void;
   onReplyLike: (replyId: string) => void;
   onCommentDraft: (postId: string, value: string) => void;
   onReplyDraft: (commentId: string, value: string) => void;
   onAddComment: (postId: string) => void;
   onAddReply: (commentId: string) => void;
+  onAddNestedReply: (replyId: string) => void;
 }) {
   const [burst, setBurst] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeReplyCommentId, setActiveReplyCommentId] = useState<string | null>(null);
+  const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
   const isAuthor = post.author.id === userId;
   const reactionOptions = [
     { key: "LIKE", icon: "👍", label: "Like" },
@@ -105,6 +115,66 @@ export function PostCard({
         <span>{icons.join("")}</span>
         {likes.length}
       </span>
+    );
+  }
+
+  function submitReply(targetId: string, submit: (targetId: string) => void, close: () => void) {
+    submit(targetId);
+    if ((replyDrafts[targetId] ?? "").trim()) {
+      close();
+    }
+  }
+
+  function renderReply(reply: Reply, depth = 0) {
+    const canDelete = reply.author.id === userId;
+    const isReplying = activeReplyId === reply.id;
+    const canReply = depth < 1;
+
+    return (
+      <div className="feed-comment feed-reply" data-depth={depth} key={reply.id}>
+        <img src={reply.author.avatarUrl ?? "/assets/images/Avatar.png"} alt="" />
+        <div className="feed-reply-content">
+          <div className="feed-comment-bubble">
+            <strong>{fullName(reply.author)}</strong>
+            <p>{reply.body}</p>
+            {reactionBadge(reply.likes)}
+          </div>
+          <div className="feed-comment-actions">
+            <button className={isLiked(reply.likes, userId) ? "is-liked" : ""} type="button" onClick={() => onReplyLike(reply.id)}>
+              {isLiked(reply.likes, userId) ? "Unlike" : "Like"}
+            </button>
+            {canReply ? (
+              <button type="button" onClick={() => setActiveReplyId((value) => (value === reply.id ? null : reply.id))}>
+                Reply
+              </button>
+            ) : null}
+            {canDelete ? (
+              <button className="is-danger" type="button" onClick={() => onDeleteReply(reply.id)}>
+                Delete
+              </button>
+            ) : null}
+          </div>
+          {isReplying ? (
+            <form
+              className="feed-inline-form feed-reply-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                submitReply(reply.id, onAddNestedReply, () => setActiveReplyId(null));
+              }}
+            >
+              <MentionInput
+                autoFocus
+                people={mentionPeople}
+                value={replyDrafts[reply.id] ?? ""}
+                onChange={(value) => onReplyDraft(reply.id, value)}
+                placeholder={`Reply to ${reply.author.firstName}`}
+              />
+              <button type="submit">Reply</button>
+            </form>
+          ) : null}
+          {reply.replies.length > 0 ? <div className="feed-reply-thread">{reply.replies.map((childReply) => renderReply(childReply, depth + 1))}</div> : null}
+        </div>
+      </div>
     );
   }
 
@@ -183,7 +253,7 @@ export function PostCard({
       >
         <img src={user.avatarUrl ?? "/assets/images/Avatar.png"} alt="" />
         <div className="feed-comment-input-wrap">
-          <input id={`comment-${post.id}`} value={commentDraft} onChange={(event) => onCommentDraft(post.id, event.target.value)} placeholder="Write a comment" />
+          <MentionInput id={`comment-${post.id}`} people={mentionPeople} value={commentDraft} onChange={(value) => onCommentDraft(post.id, value)} placeholder="Write a comment" />
           <button type="button" aria-label="Voice comment" onClick={() => window.alert("Voice comment is under construction.")}>♩</button>
           <button type="button" aria-label="Image comment" onClick={() => window.alert("Image comment is under construction.")}>▧</button>
         </div>
@@ -209,41 +279,109 @@ export function PostCard({
                   <button className={isLiked(comment.likes, userId) ? "is-liked" : ""} type="button" onClick={() => onCommentLike(comment.id)}>
                     {isLiked(comment.likes, userId) ? "Unlike" : "Like"}
                   </button>
-                  <span>Reply</span>
+                  <button type="button" onClick={() => setActiveReplyCommentId((value) => (value === comment.id ? null : comment.id))}>
+                    Reply
+                  </button>
+                  {comment.author.id === userId ? (
+                    <button className="is-danger" type="button" onClick={() => onDeleteComment(comment.id)}>
+                      Delete
+                    </button>
+                  ) : null}
                   <span>Share</span>
                 </div>
-                <form
-                  className="feed-inline-form feed-reply-form"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    onAddReply(comment.id);
-                  }}
-                >
-                  <input value={replyDrafts[comment.id] ?? ""} onChange={(event) => onReplyDraft(comment.id, event.target.value)} placeholder="Write a reply" />
-                  <button type="submit">Reply</button>
-                </form>
+                {activeReplyCommentId === comment.id ? (
+                  <form
+                    className="feed-inline-form feed-reply-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      submitReply(comment.id, onAddReply, () => setActiveReplyCommentId(null));
+                    }}
+                  >
+                    <MentionInput autoFocus people={mentionPeople} value={replyDrafts[comment.id] ?? ""} onChange={(value) => onReplyDraft(comment.id, value)} placeholder="Write a reply" />
+                    <button type="submit">Reply</button>
+                  </form>
+                ) : null}
               </div>
             </div>
-            {comment.replies.map((reply) => (
-              <div className="feed-comment feed-reply" key={reply.id}>
-                <img src={reply.author.avatarUrl ?? "/assets/images/Avatar.png"} alt="" />
-                <div>
-                  <div className="feed-comment-bubble">
-                    <strong>{fullName(reply.author)}</strong>
-                    <p>{reply.body}</p>
-                    {reactionBadge(reply.likes)}
-                  </div>
-                  <div className="feed-comment-actions">
-                    <button className={isLiked(reply.likes, userId) ? "is-liked" : ""} type="button" onClick={() => onReplyLike(reply.id)}>
-                      {isLiked(reply.likes, userId) ? "Unlike" : "Like"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
+            {comment.replies.length > 0 ? <div className="feed-reply-thread">{comment.replies.map((reply) => renderReply(reply))}</div> : null}
           </div>
         ))}
       </div>
     </article>
+  );
+}
+
+function MentionInput({
+  id,
+  value,
+  onChange,
+  placeholder,
+  autoFocus,
+  people
+}: {
+  id?: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  autoFocus?: boolean;
+  people: Person[];
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [caret, setCaret] = useState(value.length);
+  const beforeCaret = value.slice(0, caret);
+  const match = beforeCaret.match(/(^|\s)@([A-Za-z0-9 _-]*)$/);
+  const query = match?.[2].trim().toLowerCase() ?? "";
+  const suggestions = match
+    ? people
+        .filter((person) => fullName(person).toLowerCase().includes(query))
+        .slice(0, 6)
+    : [];
+
+  function syncCaret(input: HTMLInputElement) {
+    setCaret(input.selectionStart ?? input.value.length);
+  }
+
+  function selectMention(person: Person) {
+    if (!match) {
+      return;
+    }
+
+    const start = beforeCaret.length - match[0].length + match[1].length;
+    const nextValue = `${value.slice(0, start)}@${fullName(person)} ${value.slice(caret)}`;
+    const nextCaret = start + fullName(person).length + 2;
+    onChange(nextValue);
+    setCaret(nextCaret);
+    window.setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(nextCaret, nextCaret);
+    }, 0);
+  }
+
+  return (
+    <span className="feed-mention-field">
+      <input
+        ref={inputRef}
+        id={id}
+        autoFocus={autoFocus}
+        value={value}
+        onChange={(event) => {
+          onChange(event.target.value);
+          syncCaret(event.target);
+        }}
+        onClick={(event) => syncCaret(event.currentTarget)}
+        onKeyUp={(event) => syncCaret(event.currentTarget)}
+        placeholder={placeholder}
+      />
+      {suggestions.length > 0 ? (
+        <span className="feed-mention-menu">
+          {suggestions.map((person) => (
+            <button key={person.id} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => selectMention(person)}>
+              <img src={person.avatarUrl ?? "/assets/images/Avatar.png"} alt="" />
+              <span>{fullName(person)}</span>
+            </button>
+          ))}
+        </span>
+      ) : null}
+    </span>
   );
 }

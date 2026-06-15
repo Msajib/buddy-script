@@ -33,9 +33,14 @@ export async function POST(request: Request, { params }: { params: { postId: str
     include: {
       author: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
       likes: { include: { user: { select: { id: true, firstName: true, lastName: true } } } },
-      replies: true
+      replies: {
+        include: {
+          author: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
+          likes: { include: { user: { select: { id: true, firstName: true, lastName: true } } } }
+        }
+      }
     }
   });
 
-  return NextResponse.json({ comment }, { status: 201 });
+  return NextResponse.json({ comment: { ...comment, replies: [] } }, { status: 201 });
 }

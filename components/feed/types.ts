@@ -13,9 +13,11 @@ export type Like = {
 export type Reply = {
   id: string;
   body: string;
+  parentId?: string | null;
   createdAt: string;
   author: Person;
   likes: Like[];
+  replies: Reply[];
 };
 
 export type Comment = {

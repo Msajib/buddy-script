@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PhotoIcon, SendIcon, VideoIcon } from "@/components/feed/icons";
 import { Person } from "@/components/feed/types";
 
@@ -8,24 +8,62 @@ export function ComposeCard({
   user,
   posting,
   message,
+  resetKey,
   onCreatePost
 }: {
   user: Person;
   posting: boolean;
   message: string;
+  resetKey: number;
   onCreatePost: (event: React.FormEvent<HTMLFormElement>) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const previewUrlRef = useRef<string | null>(null);
+  const [body, setBody] = useState("");
   const [visibility, setVisibility] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
   const [preview, setPreview] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+
+    setBody("");
+    setVisibility("PUBLIC");
+    setPreview(null);
+    setExpanded(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, [resetKey]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+      }
+    };
+  }, []);
 
   function notReady(label: string) {
     window.alert(`${label} is under construction.`);
   }
 
+  function collapseIfEmpty(event: React.FocusEvent<HTMLElement>) {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      return;
+    }
+
+    if (!body.trim() && !preview) {
+      setExpanded(false);
+      setVisibility("PUBLIC");
+    }
+  }
+
   return (
-    <section className="feed-panel feed-compose-panel">
+    <section className="feed-panel feed-compose-panel" onBlur={collapseIfEmpty}>
       <form onSubmit={onCreatePost}>
         {message ? <div className="app-alert error">{message}</div> : null}
         <div className={`feed-compose-input-row ${expanded ? "is-expanded" : ""}`}>
@@ -46,7 +84,7 @@ export function ComposeCard({
                     🔒
                   </button>
                 </div>
-                <textarea name="body" placeholder="Share what you are thinking..." required autoFocus />
+                <textarea name="body" value={body} onChange={(event) => setBody(event.target.value)} placeholder="Share what you are thinking..." required autoFocus />
               </>
             )}
           </div>
@@ -54,7 +92,22 @@ export function ComposeCard({
         {preview ? (
           <div className="feed-compose-preview">
             <img src={preview} alt="Selected upload preview" />
-            <button type="button" onClick={() => setPreview(null)} aria-label="Remove selected image">×</button>
+            <button
+              type="button"
+              onClick={() => {
+                if (previewUrlRef.current) {
+                  URL.revokeObjectURL(previewUrlRef.current);
+                  previewUrlRef.current = null;
+                }
+                setPreview(null);
+                if (fileInputRef.current) {
+                  fileInputRef.current.value = "";
+                }
+              }}
+              aria-label="Remove selected image"
+            >
+              ×
+            </button>
           </div>
         ) : null}
         <div className="feed-compose-toolbar">
@@ -67,7 +120,15 @@ export function ComposeCard({
             hidden
             onChange={(event) => {
               const file = event.target.files?.[0];
-              setPreview(file ? URL.createObjectURL(file) : null);
+              if (previewUrlRef.current) {
+                URL.revokeObjectURL(previewUrlRef.current);
+              }
+              const nextPreview = file ? URL.createObjectURL(file) : null;
+              previewUrlRef.current = nextPreview;
+              setPreview(nextPreview);
+              if (file) {
+                setExpanded(true);
+              }
             }}
           />
           <button type="button" onClick={() => fileInputRef.current?.click()}>

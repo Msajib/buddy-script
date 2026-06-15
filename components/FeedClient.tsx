@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ComposeCard } from "@/components/feed/ComposeCard";
 import { FeedHeader } from "@/components/feed/FeedHeader";
 import { LeftSidebar } from "@/components/feed/LeftSidebar";
 import { PostCard } from "@/components/feed/PostCard";
 import { RightSidebar } from "@/components/feed/RightSidebar";
 import { Stories } from "@/components/feed/Stories";
-import { Person, Post } from "@/components/feed/types";
+import { Person, Post, Reply } from "@/components/feed/types";
 
 export function FeedClient({
   initialPosts,
@@ -27,9 +27,9 @@ export function FeedClient({
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [message, setMessage] = useState("");
   const [posting, setPosting] = useState(false);
+  const [composeResetKey, setComposeResetKey] = useState(0);
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
-  const mainColumnRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const storedTheme = window.localStorage.getItem("buddy-theme");
@@ -115,6 +115,7 @@ export function FeedClient({
 
     form.reset();
     await refreshFeed();
+    setComposeResetKey((key) => key + 1);
   }
 
   async function postReaction(postId: string, reaction = "LIKE") {
@@ -174,11 +175,7 @@ export function FeedClient({
         ...post,
         comments: post.comments.map((comment) => ({
           ...comment,
-          replies: comment.replies.map((reply) => {
-            if (reply.id !== replyId) {
-              return reply;
-            }
-
+          replies: updateReplyTree(comment.replies, replyId, (reply) => {
             const liked = reply.likes.some((like) => like.user.id === user.id);
             return {
               ...reply,
@@ -190,6 +187,66 @@ export function FeedClient({
     );
 
     await fetch(`/api/replies/${replyId}/like`, { method: "POST" });
+    void refreshFeed();
+  }
+
+  async function addReplyToReply(replyId: string) {
+    const body = replyDrafts[replyId] ?? "";
+    await addText(`/api/replies/${replyId}/replies`, body, () => setReplyDrafts((drafts) => ({ ...drafts, [replyId]: "" })));
+  }
+
+  async function deleteComment(commentId: string) {
+    const confirmed = window.confirm("Delete this comment?");
+
+    if (!confirmed) {
+      return;
+    }
+
+    const previousPosts = posts;
+    setPosts((currentPosts) =>
+      currentPosts.map((post) => ({
+        ...post,
+        comments: post.comments.filter((comment) => comment.id !== commentId)
+      }))
+    );
+
+    const response = await fetch(`/api/comments/${commentId}`, { method: "DELETE" });
+
+    if (!response.ok) {
+      setPosts(previousPosts);
+      window.alert("Could not delete this comment.");
+      return;
+    }
+
+    void refreshFeed();
+  }
+
+  async function deleteReply(replyId: string) {
+    const confirmed = window.confirm("Delete this reply?");
+
+    if (!confirmed) {
+      return;
+    }
+
+    const previousPosts = posts;
+    setPosts((currentPosts) =>
+      currentPosts.map((post) => ({
+        ...post,
+        comments: post.comments.map((comment) => ({
+          ...comment,
+          replies: removeReplyFromTree(comment.replies, replyId)
+        }))
+      }))
+    );
+
+    const response = await fetch(`/api/replies/${replyId}`, { method: "DELETE" });
+
+    if (!response.ok) {
+      setPosts(previousPosts);
+      window.alert("Could not delete this reply.");
+      return;
+    }
+
     void refreshFeed();
   }
 
@@ -245,6 +302,15 @@ export function FeedClient({
 
   const people = useMemo(() => {
     const map = new Map<string, Person>();
+    const addReplyAuthors = (replies: Reply[]) => {
+      replies.forEach((reply) => {
+        if (reply.author.id !== user.id) {
+          map.set(reply.author.id, reply.author);
+        }
+        addReplyAuthors(reply.replies);
+      });
+    };
+
     posts.forEach((post) => {
       if (post.author.id !== user.id) {
         map.set(post.author.id, post.author);
@@ -253,11 +319,7 @@ export function FeedClient({
         if (comment.author.id !== user.id) {
           map.set(comment.author.id, comment.author);
         }
-        comment.replies.forEach((reply) => {
-          if (reply.author.id !== user.id) {
-            map.set(reply.author.id, reply.author);
-          }
-        });
+        addReplyAuthors(comment.replies);
       });
     });
 
@@ -269,15 +331,16 @@ export function FeedClient({
       <FeedHeader user={user} />
       <div className="feed-layout">
         <LeftSidebar people={people} />
-        <main className="feed-main-column" ref={mainColumnRef} onScroll={handleMainScroll}>
+        <main className="feed-main-column" onScroll={handleMainScroll}>
           <Stories />
-          <ComposeCard user={user} posting={posting} message={message} onCreatePost={createPost} />
+          <ComposeCard user={user} posting={posting} message={message} resetKey={composeResetKey} onCreatePost={createPost} />
           {posts.map((post) => (
             <PostCard
               key={post.id}
               post={post}
               user={user}
               userId={user.id}
+              mentionPeople={people}
               commentDraft={commentDrafts[post.id] ?? ""}
               replyDrafts={replyDrafts}
               onPostLike={postReaction}
@@ -285,6 +348,8 @@ export function FeedClient({
               onDeletePost={deletePost}
               onCommentLike={commentReaction}
               onReplyLike={replyReaction}
+              onDeleteComment={deleteComment}
+              onDeleteReply={deleteReply}
               onCommentDraft={(postId, value) => setCommentDrafts((drafts) => ({ ...drafts, [postId]: value }))}
               onReplyDraft={(commentId, value) => setReplyDrafts((drafts) => ({ ...drafts, [commentId]: value }))}
               onAddComment={(postId) =>
@@ -297,6 +362,7 @@ export function FeedClient({
                   setReplyDrafts((drafts) => ({ ...drafts, [commentId]: "" }))
                 )
               }
+              onAddNestedReply={addReplyToReply}
             />
           ))}
           {hasMore ? (
@@ -321,4 +387,26 @@ export function FeedClient({
       </button>
     </div>
   );
+}
+
+function updateReplyTree(replies: Reply[], replyId: string, update: (reply: Reply) => Reply): Reply[] {
+  return replies.map((reply) => {
+    if (reply.id === replyId) {
+      return update(reply);
+    }
+
+    return {
+      ...reply,
+      replies: updateReplyTree(reply.replies, replyId, update)
+    };
+  });
+}
+
+function removeReplyFromTree(replies: Reply[], replyId: string): Reply[] {
+  return replies
+    .filter((reply) => reply.id !== replyId)
+    .map((reply) => ({
+      ...reply,
+      replies: removeReplyFromTree(reply.replies, replyId)
+    }));
 }
